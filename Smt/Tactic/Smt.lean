@@ -11,6 +11,8 @@ import Lean.Meta.Tactic.TryThis
 import Smt.Dsl.Sexp
 import Smt.Reconstruct
 import Smt.Reconstruct.Prop.Lemmas
+import Smt.Reconstruct.Z3
+import Smt.Solver.Z3
 import Smt.Translate.Query
 import Smt.Preprocess
 import Smt.Util
@@ -21,8 +23,25 @@ open Lean hiding Command
 open Elab Tactic Qq
 open Smt Translate Query Reconstruct Util
 
+/-- Which SMT solver backend to use. -/
+inductive SolverKind where
+  | cvc5
+  | z3
+deriving Inhabited, Repr, DecidableEq
+
+instance : Lean.KVMap.Value SolverKind where
+  toDataValue
+    | .cvc5 => "cvc5"
+    | .z3   => "z3"
+  ofDataValue?
+    | "cvc5" => some .cvc5
+    | "z3"   => some .z3
+    | _      => none
+
 /-- Configuration options for the SMT tactic. -/
 structure Config where
+  /-- Which solver backend to use. Default is cvc5. -/
+  solver : SolverKind := .cvc5
   /-- The timeout for the SMT solver in seconds. -/
   timeout : Option Nat := .none
   /-- Whether to enable native components for proof reconstruction. Speeds up normalization and
@@ -98,6 +117,26 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
     mv.withContext do trace[smt] "goal: {goalType}"
     trace[smt] "\nquery:\n{Command.cmdsAsQuery (cmds ++ [.checkSat])}"
   -- 4. Run the solver.
+  if cfg.solver == .z3 then
+    -- Z3 backend via lean-z3 FFI bindings with hint-based reconstruction
+    let z3res ← Solver.Z3.solveWithHints (Command.cmdsAsQuery cmds) cfg.timeout
+    match z3res with
+    | .unknown r =>
+      trace[smt.solve] "\nunknown reason:\n{r}\n"
+      return .unknown r
+    | .sat =>
+      return .sat none
+    | .unsat clauses =>
+      if cfg.trust then
+        mv.admit true
+        return .unsat [] hs
+      -- Reconstruct proof from Z3's clause events using grind
+      trace[smt] "Z3 returned unsat with {clauses.size} clause events"
+      let mvs ← Smt.Reconstruct.Z3.reconstructFromHints mv₁ clauses fvNames₂
+      mv.assign (.mvar mv₀)
+      return .unsat mvs hs
+  else
+  -- cvc5 backend (default)
   let options := defaultSolverOptions ++ if cfg.trust then [] else [("produce-proofs", "true")] ++ cfg.extraSolverOptions
   let res ← solve (Command.cmdsAsQuery cmds) cfg.timeout (!cfg.trust) options
   -- trace[smt] "\nresult: {res}"

@@ -8,7 +8,13 @@ Authors: Abdalrhman Mohamed
 import Smt.Reconstruct
 import Smt.Reconstruct.Builtin.AC
 import Smt.Reconstruct.Prop.Core
+import Smt.Reconstruct.Prop.Factor
 import Smt.Reconstruct.Prop.Lemmas
+import Smt.Reconstruct.Prop.LiftOrNToImp
+import Smt.Reconstruct.Prop.LiftOrNToNeg
+import Smt.Reconstruct.Prop.PermutateOr
+import Smt.Reconstruct.Prop.Pull
+import Smt.Reconstruct.Prop.Resolution
 import Smt.Reconstruct.Prop.Rewrites
 
 namespace Smt.Reconstruct.Prop

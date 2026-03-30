@@ -3,13 +3,16 @@ import Lake
 open Lake DSL
 
 require auto from
-  git "https://github.com/abdoo8080/lean-auto.git" @ "v4.27.0"
+  git "https://github.com/leanprover-community/lean-auto.git" @ "v4.28.0-hammer"
 
 require cvc5 from
-  git "https://github.com/abdoo8080/lean-cvc5.git" @ "0cfacc8"
+  git "https://github.com/abdoo8080/lean-cvc5.git" @ "478b1edef09216da2fedaeb2c354429c0fbabd46"
 
 require mathlib from
-  git "https://github.com/leanprover-community/mathlib4.git" @ "v4.27.0"
+  git "https://github.com/leanprover-community/mathlib4.git" @ "v4.28.0"
+
+require z3 from
+  git "https://github.com/Pat-Lafon/lean-z3.git" @ "master"
 
 package smt
 
@@ -31,6 +34,24 @@ partial def readAllFiles (dir : FilePath) : IO (Array FilePath) := do
       files := files.push entry.path
   return files
 
+/-- Directories and files that require Mathlib (via Smt.Real, Smt.Rat, or Smt.Reconstruct.Arith). -/
+def needsMathlib (file : FilePath) : Bool :=
+  file.components.contains "Real" ||
+  file.components.contains "Rat" ||
+  -- These specific files import Smt.Real or Smt.Rat
+  file.toString == "Test/linarith.lean" ||
+  file.toString == "Test/Unit/Real.lean" ||
+  file.toString == "Test/Unit/Rat.lean" ||
+  file.toString == "Test/Unit/Embedding.lean" ||
+  file.toString == "Test/Auto.lean" ||
+  -- Arith reconstruction tests need Smt.Reconstruct.Arith which needs Mathlib
+  (file.components.contains "Reconstruction" && file.components.contains "Arith")
+
+/-- Check if Mathlib-dependent modules are built by looking for Smt.Real olean. -/
+def mathlibBuilt : IO Bool := do
+  let path : FilePath := ".lake" / "build" / "lib" / "lean" / "Smt" / "Real.olean"
+  path.pathExists
+
 /--
 Run tests.
 
@@ -46,22 +67,26 @@ Run tests.
   for file in files do
     if file.components.contains "Playground" then
       continue
-    if file.components.contains "Reconstruction" then
-      continue
-    if file.components.contains "Examples" then
-      continue
     if file.extension = some "lean" then
       tests := tests.push file
     else if file.extension = some "expected" then
       expected := expected.push file
+  -- Check if Mathlib-dependent modules are built
+  let hasMathlib ← mathlibBuilt
   let mut tasks := []
+  let mut skipped : Nat := 0
   for t in tests do
     let e := t.withExtension "expected"
     if expected.contains e then
+      if !hasMathlib && needsMathlib t then
+        skipped := skipped + 1
+        continue
       tasks := (← IO.asTask (runTest t e (← readThe Lake.Context))) :: tasks
     else
       IO.println s!"Error: Could not find {e}"
       return 1
+  if skipped > 0 then
+    IO.println s!"Skipped {skipped} tests (Mathlib not built; run `lake build Smt.Real Smt.Rat` first)"
   for task in tasks do
     let code ← IO.ofExcept task.get
     if code ≠ 0 then
@@ -73,9 +98,12 @@ where
     let some cvc5 ← findPackageByName? ``cvc5 | return 2
     let some libcvc5 := cvc5.findLeanLib? `cvc5 | return 3
     let libcvc5 := s!"--plugin={libcvc5.sharedLibFile}"
+    let some z3pkg ← findPackageByName? ``z3 | return 2
+    let some libz3 := z3pkg.findLeanLib? `Z3 | return 3
+    let libz3 := s!"--plugin={libz3.sharedLibFile}"
     let out ← IO.Process.output {
       cmd := (← getLean).toString
-      args := #[libcvc5, test.toString]
+      args := #[libcvc5, libz3, test.toString]
       env := ← getAugmentedEnv
     }
     let expected ← IO.FS.readFile expected
@@ -106,9 +134,16 @@ script update do
       continue
     if file.extension = some "lean" then
       tests := tests.push file
+  let hasMathlib ← mathlibBuilt
   let mut tasks := []
+  let mut skipped : Nat := 0
   for t in tests do
+    if !hasMathlib && needsMathlib t then
+      skipped := skipped + 1
+      continue
     tasks := (← IO.asTask (updateTest t (← readThe Lake.Context))) :: tasks
+  if skipped > 0 then
+    IO.println s!"Skipped {skipped} tests (Mathlib not built; run `lake build Smt.Real Smt.Rat` first)"
   for task in tasks do
     _ ← IO.ofExcept task.get
   return 0
@@ -119,9 +154,12 @@ where
     let some cvc5 ← findPackageByName? ``cvc5 | return 2
     let some libcvc5 := cvc5.findLeanLib? `cvc5 | return 3
     let libcvc5 := s!"--plugin={libcvc5.sharedLibFile}"
+    let some z3pkg ← findPackageByName? ``z3 | return 2
+    let some libz3 := z3pkg.findLeanLib? `Z3 | return 3
+    let libz3 := s!"--plugin={libz3.sharedLibFile}"
     let out ← IO.Process.output {
       cmd := (← getLean).toString
-      args := #[libcvc5, test.toString]
+      args := #[libcvc5, libz3, test.toString]
       env := ← getAugmentedEnv
     }
     IO.FS.writeFile expected out.stdout
@@ -141,9 +179,12 @@ script profile args do
   let some cvc5 ← findPackageByName? ``cvc5 | return 2
   let some libcvc5 := cvc5.findLeanLib? `cvc5 | return 3
   let libcvc5 := s!"--plugin={libcvc5.sharedLibFile}"
+  let some z3pkg ← findPackageByName? ``z3 | return 2
+  let some libz3 := z3pkg.findLeanLib? `Z3 | return 3
+  let libz3 := s!"--plugin={libz3.sharedLibFile}"
   let child ← IO.Process.spawn {
     cmd := (← getLean).toString
-    args := #[libcvc5, "-Dtrace.profiler=true", s!"-Dtrace.profiler.output={log}", file.toString]
+    args := #[libcvc5, libz3, "-Dtrace.profiler=true", s!"-Dtrace.profiler.output={log}", file.toString]
     env := ← getAugmentedEnv
   }
   child.wait
