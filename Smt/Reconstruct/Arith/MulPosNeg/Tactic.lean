@@ -59,7 +59,7 @@ def arithMulMeta (va vb vc : Expr) (pos : Bool) (compId : Nat) (thms : List Name
   let typeC ← inferType vc
   let thmName ←
     if compId < 5 then
-      pure (thms.get! compId)
+      pure (thms[compId]!)
     else throwError "[arithMul]: index too large"
 
   let zeroI := mkApp (mkConst ``Int.ofNat) (mkNatLit 0)
@@ -71,7 +71,7 @@ def arithMulMeta (va vb vc : Expr) (pos : Bool) (compId : Nat) (thms : List Name
     else mkAppM ``LT.lt #[vc, zeroC]
   let operator ←
     if compId < 5 then
-      pure $ operators.get! compId
+      pure $ operators[compId]!
     else throwError "[arithMul]: index too large"
   let premiseRight ← mkAppM operator #[va, vb]
 
@@ -83,12 +83,12 @@ def arithMulMeta (va vb vc : Expr) (pos : Bool) (compId : Nat) (thms : List Name
       mkAppM thmName #[]
     | const ``Int _, const ``Real _ =>
       withLocalDeclD (← mkFreshId) premiseType $ fun bv => do
-        let e₁ ← mkAppM (castSnds.get! compId) #[bv]
+        let e₁ ← mkAppM (castSnds[compId]!) #[bv]
         let e₂ ← mkAppM thmName #[e₁]
         mkLambdaFVars #[bv] e₂
     | const ``Real _, const ``Int _ =>
       withLocalDeclD (← mkFreshId) premiseType $ fun bv => do
-        let e₁ ← mkAppM (castFsts.get! compId) #[bv]
+        let e₁ ← mkAppM (castFsts[compId]!) #[bv]
         let e₂ ← mkAppM thmName #[e₁]
         mkLambdaFVars #[bv] e₂
     | const ``Real _, const ``Real _ =>

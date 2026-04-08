@@ -9,6 +9,7 @@ import Lean
 
 import Smt.Attribute
 import Smt.Translate.Term
+import Smt.Util
 
 /-- Return true iff `e` contains a free variable which satisfies `p`. -/
 @[inline] private def Lean.Expr.hasAnyFVar' [Monad m] (e : Expr) (p : FVarId → m Bool) : m Bool :=
@@ -147,6 +148,13 @@ partial def applyTranslators? : Translator := withCache fun e => do
           | none   => return symbolT (← fv.getUserName).toString
       | const nm _ =>
         modify fun st => { st with depConstants := st.depConstants.insert nm }
+        -- If this is a projection of a non-builtin datatype, use the selector name
+        -- from declare-datatypes instead of the projection name.
+        let env ← getEnv
+        if let some pinfo := env.getProjectionFnInfo? nm then
+          if let some (.inductInfo iv) := env.find? pinfo.ctorName.getPrefix then
+            if Smt.Util.isSmtDatatype env iv.name then
+              return symbolT s!"{pinfo.ctorName.toString}.{pinfo.i}"
         return symbolT nm.toString
       | app f e => return appT (← applyTranslators! f) (← applyTranslators! e)
       | lam .. => throwError "cannot translate {e}, SMT-LIB does not support lambdas"

@@ -26,9 +26,9 @@ theorem arith_div_by_const_elim_real_neg {t c₁ c₂ : Real} : t / (-c₁ / c�
 
 -- https://github.com/cvc5/cvc5/blob/main/src/theory/arith/rewrites
 
-variable {α : Type} [h : LinearOrderedRing α]
+variable {α : Type} [Ring α] [LinearOrder α] [IsStrictOrderedRing α]
 
-variable {t ts x xs : α}
+variable {t s ts ss x xs y z w ws ys zs rs : α}
 
 theorem arith_plus_zero : ts + 0 + ss = ts + ss :=
   (add_zero ts).symm ▸ rfl
@@ -122,6 +122,6 @@ theorem arith_abs_elim : |x| = if x < 0 then -x else x :=
   if h : x < 0 then
     if_pos h ▸ abs_of_neg h
   else
-    if_neg h ▸ abs_of_nonneg (le_of_not_lt h)
+    if_neg h ▸ abs_of_nonneg (not_lt.mp h)
 
 end Smt.Reconstruct.Arith

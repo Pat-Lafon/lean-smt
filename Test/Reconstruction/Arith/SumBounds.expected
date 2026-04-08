@@ -1,28 +1,20 @@
-Test/Reconstruction/Arith/SumBounds.lean:7:2: error: application type mismatch
-  sumBounds₁ h₃
-argument
-  h₃
+Test/Reconstruction/Arith/SumBounds.lean:7:2: error: failed to synthesize
+  Ring ℕ
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+Test/Reconstruction/Arith/SumBounds.lean:12:4: error: Type mismatch
+  _uniq.457
 has type
-  @LT.lt ℕ instLTNat c f : Prop
+  w + c + b + a ≤ z + f + e + d
 but is expected to have type
-  @LT.lt ℕ Preorder.toLT c f : Prop
-Test/Reconstruction/Arith/SumBounds.lean:12:4: error: type mismatch
-  _uniq.452
+  a + (b + (c + w)) ≤ d + (e + (f + z))
+Test/Reconstruction/Arith/SumBounds.lean:16:2: error: Type mismatch
+  _uniq.1457
 has type
-  w + c + b + a ≤ z + f + e + d : Prop
+  c + b + ↑a < f + e + ↑d
 but is expected to have type
-  a + (b + (c + w)) ≤ d + (e + (f + z)) : Prop
-Test/Reconstruction/Arith/SumBounds.lean:16:2: error: type mismatch
-  _uniq.1647
-has type
-  c + b + ↑a < f + e + ↑d : Prop
-but is expected to have type
-  ↑a + (b + c) < ↑d + (e + f) : Prop
-Test/Reconstruction/Arith/SumBounds.lean:20:2: error: application type mismatch
-  sumBounds₁ h₃
-argument
-  h₃
-has type
-  @LT.lt ℕ instLTNat c f : Prop
-but is expected to have type
-  @LT.lt ℕ Preorder.toLT c f : Prop
+  ↑a + (b + c) < ↑d + (e + f)
+Test/Reconstruction/Arith/SumBounds.lean:20:2: error: failed to synthesize
+  Ring ℕ
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.

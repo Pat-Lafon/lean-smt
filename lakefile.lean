@@ -188,3 +188,28 @@ script profile args do
     env := ← getAugmentedEnv
   }
   child.wait
+
+/--
+Run a single test file with the correct plugin and environment setup.
+
+USAGE:
+  lake script run single <File>.lean
+
+Useful for quick iteration without running the full test suite.
+-/
+script single args do
+  let file : FilePath := args[0]!
+  let some cvc5 ← findPackageByName? ``cvc5 | return 2
+  let some libcvc5 := cvc5.findLeanLib? `cvc5 | return 3
+  let libcvc5 := s!"--plugin={libcvc5.sharedLibFile}"
+  let some z3pkg ← findPackageByName? ``z3 | return 2
+  let some libz3 := z3pkg.findLeanLib? `Z3 | return 3
+  let libz3 := s!"--plugin={libz3.sharedLibFile}"
+  let child ← IO.Process.spawn {
+    cmd := (← getLean).toString
+    args := #[libcvc5, libz3, file.toString]
+    env := ← getAugmentedEnv
+    stdout := .inherit
+    stderr := .inherit
+  }
+  child.wait

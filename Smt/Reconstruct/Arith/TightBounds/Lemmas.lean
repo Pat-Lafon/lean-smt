@@ -11,7 +11,7 @@ import Smt.Reconstruct.Arith.MulPosNeg.Lemmas
 
 namespace Smt.Reconstruct.Arith
 
-variable {α : Type} [LinearOrderedRing α] [FloorRing α]
+variable {α : Type} [Ring α] [LinearOrder α] [IsStrictOrderedRing α] [FloorRing α]
 
 theorem Real.neg_lt_neg {a b : α} (h : a < b) : -a > -b := by
   simp

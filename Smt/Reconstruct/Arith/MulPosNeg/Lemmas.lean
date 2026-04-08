@@ -11,7 +11,7 @@ namespace Smt.Reconstruct.Arith
 
 variable {α : Type}
 
-variable [LinearOrderedRing α]
+variable [Ring α] [LinearOrder α] [IsStrictOrderedRing α]
 
 variable {a b c : α}
 

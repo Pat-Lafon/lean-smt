@@ -9,7 +9,7 @@ import Smt.Reconstruct.Arith.TightBounds.Lemmas
 import Smt.Reconstruct.Util
 
 import Lean
-import Mathlib.Algebra.Order.Floor
+import Mathlib.Algebra.Order.Floor.Defs
 
 namespace Smt.Reconstruct.Arith
 

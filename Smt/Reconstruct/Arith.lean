@@ -26,13 +26,17 @@ open Qq
   | .REAL_SORT    => return q(Real)
   | _             => return none
 
-def getTypeAndInst (s : cvc5.Sort) : Σ α : Q(Type), Q(LinearOrderedRing $α) := match s.isInteger with
-  | false => ⟨q(Real), q(Real.instLinearOrderedRing)⟩
-  | true  => ⟨q(Int), q(Int.instLinearOrderedCommRing.toLinearOrderedRing)⟩
+def getTypeAndInst (s : cvc5.Sort) :
+    Σ (α : Q(Type)) (_ : Q(Ring $α)) (_ : Q(LinearOrder $α)), Q(IsStrictOrderedRing $α) :=
+  match s.isInteger with
+  | false => ⟨q(Real), q(inferInstance), q(inferInstance), q(inferInstance)⟩
+  | true  => ⟨q(Int), q(inferInstance), q(inferInstance), q(inferInstance)⟩
 
-def getTypeAndInst' (s : cvc5.Sort) : Σ (α : Q(Type)) (_ : Q(LinearOrderedRing $α)), Q(FloorRing $α) := match s.isInteger with
-  | false => ⟨q(Real), q(Real.instLinearOrderedRing), q(Real.instFloorRing)⟩
-  | true  => ⟨q(Int), q(Int.instLinearOrderedCommRing.toLinearOrderedRing), q(instFloorRingInt)⟩
+def getTypeAndInst' (s : cvc5.Sort) :
+    Σ (α : Q(Type)) (_ : Q(Ring $α)) (_ : Q(LinearOrder $α)) (_ : Q(IsStrictOrderedRing $α)), Q(FloorRing $α) :=
+  match s.isInteger with
+  | false => ⟨q(Real), q(inferInstance), q(inferInstance), q(inferInstance), q(inferInstance)⟩
+  | true  => ⟨q(Int), q(inferInstance), q(inferInstance), q(inferInstance), q(inferInstance)⟩
 
 @[smt_term_reconstruct] def reconstructArith : TermReconstructor := fun t => do match t.getKind with
   | .SKOLEM => match t.getSkolemId! with
@@ -62,17 +66,17 @@ def getTypeAndInst' (s : cvc5.Sort) : Σ (α : Q(Type)) (_ : Q(LinearOrderedRing
       else
         return q(-$num / $den)
   | .NEG =>
-    let ⟨α, _⟩ := getTypeAndInst t.getSort
+    let ⟨α, _, _, _⟩ := getTypeAndInst t.getSort
     let x : Q($α) ← reconstructTerm t[0]!
     return q(-$x)
   | .SUB =>
-    let ⟨α, _⟩ := getTypeAndInst t.getSort
+    let ⟨α, _, _, _⟩ := getTypeAndInst t.getSort
     leftAssocOp q(@HSub.hSub $α $α $α _) t
   | .ADD =>
-    let ⟨α, _⟩ := getTypeAndInst t.getSort
+    let ⟨α, _, _, _⟩ := getTypeAndInst t.getSort
     leftAssocOp q(@HAdd.hAdd $α $α $α _) t
   | .MULT =>
-    let ⟨α, _⟩ := getTypeAndInst t.getSort
+    let ⟨α, _, _, _⟩ := getTypeAndInst t.getSort
     leftAssocOp q(@HMul.hMul $α $α $α _) t
   | .INTS_DIVISION =>
     leftAssocOp q(@HDiv.hDiv Int Int Int _) t
@@ -94,22 +98,22 @@ def getTypeAndInst' (s : cvc5.Sort) : Σ (α : Q(Type)) (_ : Q(LinearOrderedRing
     let x : Q(Int) ← reconstructTerm t[0]!
     return q(Int.natAbs $x : Int)
   | .LEQ =>
-    let ⟨α, _⟩ := getTypeAndInst t[0]!.getSort
+    let ⟨α, _, _, _⟩ := getTypeAndInst t[0]!.getSort
     let x : Q($α) ← reconstructTerm t[0]!
     let y : Q($α) ← reconstructTerm t[1]!
     return q($x ≤ $y)
   | .LT =>
-    let ⟨α, _⟩ := getTypeAndInst t[0]!.getSort
+    let ⟨α, _, _, _⟩ := getTypeAndInst t[0]!.getSort
     let x : Q($α) ← reconstructTerm t[0]!
     let y : Q($α) ← reconstructTerm t[1]!
     return q($x < $y)
   | .GEQ =>
-    let ⟨α, _⟩ := getTypeAndInst t[0]!.getSort
+    let ⟨α, _, _, _⟩ := getTypeAndInst t[0]!.getSort
     let x : Q($α) ← reconstructTerm t[0]!
     let y : Q($α) ← reconstructTerm t[1]!
     return q($x ≥ $y)
   | .GT =>
-    let ⟨α, _⟩ := getTypeAndInst t[0]!.getSort
+    let ⟨α, _, _, _⟩ := getTypeAndInst t[0]!.getSort
     let x : Q($α) ← reconstructTerm t[0]!
     let y : Q($α) ← reconstructTerm t[1]!
     return q($x > $y)
@@ -127,9 +131,10 @@ where
   mkRealLit (n : Nat) : Q(Real) := match h : n with
     | 0     => q(0 : Real)
     | 1     => q(1 : Real)
-    | _ + 2 =>
-      let h : Q(Nat.AtLeastTwo $n) := h ▸ q(instNatAtLeastTwo)
-      let h := mkApp3 q(@instOfNatAtLeastTwo Real) (mkRawNatLit n) q(Real.instNatCast) h
+    | m + 2 =>
+      let atLeastTwo : Q(Nat.AtLeastTwo $n) :=
+        h ▸ .app (mkConst ``Nat.AtLeastTwo.mk []) (mkApp2 (mkConst ``Nat.le_add_right []) (mkRawNatLit 2) (mkRawNatLit m))
+      let h := mkApp3 q(@instOfNatAtLeastTwo Real) (mkRawNatLit n) q(Real.instNatCast) atLeastTwo
       mkApp2 q(@OfNat.ofNat Real) (mkRawNatLit n) h
   leftAssocOp (op : Expr) (t : cvc5.Term) : ReconstructM Expr := do
     let mut curr ← reconstructTerm t[0]!
@@ -206,20 +211,20 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   /-   let s : Q($α) ← reconstructTerm pf.getArguments[2]! -/
   /-   addThm q($t - $s = $t + -1 * $s) q(@Arith.arith_elim_minus $α $h $t $s) -/
   | .ARITH_ELIM_GT =>
-    let ⟨α, h⟩ := getTypeAndInst pf.getArguments[1]!.getSort
+    let ⟨α, hR, hO, hS⟩ := getTypeAndInst pf.getArguments[1]!.getSort
     let t : Q($α) ← reconstructTerm pf.getArguments[1]!
     let s : Q($α) ← reconstructTerm pf.getArguments[2]!
-    addThm q(($t > $s) = ¬($t ≤ $s)) q(@Arith.arith_elim_gt $α $h $t $s)
+    addThm q(($t > $s) = ¬($t ≤ $s)) q(@Arith.arith_elim_gt $α $hR $hO $hS $t $s)
   | .ARITH_ELIM_LT =>
-    let ⟨α, h⟩ := getTypeAndInst pf.getArguments[1]!.getSort
+    let ⟨α, hR, hO, hS⟩ := getTypeAndInst pf.getArguments[1]!.getSort
     let t : Q($α) ← reconstructTerm pf.getArguments[1]!
     let s : Q($α) ← reconstructTerm pf.getArguments[2]!
-    addThm q(($t < $s) = ¬($t ≥ $s)) q(@Arith.arith_elim_lt $α $h $t $s)
+    addThm q(($t < $s) = ¬($t ≥ $s)) q(@Arith.arith_elim_lt $α $hR $hO $hS $t $s)
   | .ARITH_ELIM_LEQ =>
-    let ⟨α, h⟩ := getTypeAndInst pf.getArguments[1]!.getSort
+    let ⟨α, hR, hO, hS⟩ := getTypeAndInst pf.getArguments[1]!.getSort
     let t : Q($α) ← reconstructTerm pf.getArguments[1]!
     let s : Q($α) ← reconstructTerm pf.getArguments[2]!
-    addThm q(($t ≤ $s) = ($s ≥ $t)) q(@Arith.arith_elim_leq $α $h $t $s)
+    addThm q(($t ≤ $s) = ($s ≥ $t)) q(@Arith.arith_elim_leq $α $hR $hO $hS $t $s)
   | .ARITH_LEQ_NORM =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
@@ -257,19 +262,19 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   | .ARITH_SUM_UB =>
     addTac (← reconstructTerm pf.getResult) (Arith.sumBounds · (← pf.getChildren.mapM reconstructProof))
   | .INT_TIGHT_UB =>
-    let ⟨α, h₁, h₂⟩ := getTypeAndInst' pf.getChildren[0]!.getResult[1]!.getSort
+    let ⟨α, hR, hO, hS, hF⟩ := getTypeAndInst' pf.getChildren[0]!.getResult[1]!.getSort
     let i : Q(Int) ← reconstructTerm pf.getChildren[0]!.getResult[0]!
     let c : Q($α) ← reconstructTerm pf.getChildren[0]!.getResult[1]!
     let h : Q($i < $c) ← reconstructProof pf.getChildren[0]!
-    addThm q($i ≤ ⌈$c⌉ - 1) q(@Arith.intTightUb' $α $h₁ $h₂ $i $c $h)
+    addThm q($i ≤ ⌈$c⌉ - 1) q(@Arith.intTightUb' $α $hR $hO $hS $hF $i $c $h)
   | .INT_TIGHT_LB =>
-    let ⟨α, h₁, h₂⟩ := getTypeAndInst' pf.getChildren[0]!.getResult[1]!.getSort
+    let ⟨α, hR, hO, hS, hF⟩ := getTypeAndInst' pf.getChildren[0]!.getResult[1]!.getSort
     let i : Q(Int) ← reconstructTerm pf.getChildren[0]!.getResult[0]!
     let c : Q($α) ← reconstructTerm pf.getChildren[0]!.getResult[1]!
     let h : Q($i > $c) ← reconstructProof pf.getChildren[0]!
-    addThm q($i ≥ ⌊$c⌋ + 1) q(@Arith.intTightLb' $α $h₁ $h₂ $i $c $h)
+    addThm q($i ≥ ⌊$c⌋ + 1) q(@Arith.intTightLb' $α $hR $hO $hS $hF $i $c $h)
   | .ARITH_TRICHOTOMY =>
-    let ⟨α, _⟩ := getTypeAndInst pf.getResult[0]!.getSort
+    let ⟨α, _, _, _⟩ := getTypeAndInst pf.getResult[0]!.getSort
     let x : Q($α) ← reconstructTerm pf.getResult[0]!
     let c : Q($α) ← reconstructTerm pf.getResult[1]!
     match pf.getChildren[0]!.getResult.getKind, pf.getChildren[1]!.getResult.getKind with
@@ -301,12 +306,12 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   | .ARITH_POLY_NORM =>
     let k := pf.getResult[0]!.getSort.getKind
     if k == .REAL_SORT || k == .INTEGER_SORT then
-      let ⟨α, _⟩ := getTypeAndInst pf.getResult[0]!.getSort
+      let ⟨α, _, _, _⟩ := getTypeAndInst pf.getResult[0]!.getSort
       let a : Q($α) ← reconstructTerm pf.getResult[0]!
       let b : Q($α) ← reconstructTerm pf.getResult[1]!
       addTac q($a = $b) Arith.arithPolyNorm
     else
-      let ⟨α, hα⟩ := getTypeAndInst pf.getResult[0]![0]!.getSort
+      let ⟨α, _hR, _hO, _hS⟩ := getTypeAndInst pf.getResult[0]![0]!.getSort
       let a₁ : Q($α) ← reconstructTerm pf.getResult[0]![0]!
       let a₂ : Q($α) ← reconstructTerm pf.getResult[0]![1]!
       let b₁ : Q($α) ← reconstructTerm pf.getResult[1]![0]!
@@ -315,8 +320,8 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       let h : Q($a₁ - $a₂ ≠ $b₁ - $b₂) ← Meta.mkFreshExprMVar q($a₁ - $a₂ ≠ $b₁ - $b₂)
       let some mv ← Arith.arithPolyNormCore h.mvarId! | return none
       let t ← mv.getType
-      let c₁ : Q($α) ← Arith.findConst α hα t.appArg!
-      let c₂ : Q($α) ← Arith.findConst α hα t.appFn!.appArg!
+      let c₁ : Q($α) ← Arith.findConst α _hR _hO t.appArg!
+      let c₂ : Q($α) ← Arith.findConst α _hR _hO t.appFn!.appArg!
       let hc₁ : Q($c₁ > 0) ← Meta.mkFreshExprMVar q($c₁ > 0)
       let hc₂ : Q($c₂ > 0) ← Meta.mkFreshExprMVar q($c₂ > 0)
       Arith.normNum hc₁.mvarId!
@@ -358,38 +363,38 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
         es := es.push (← reconstructTerm arg[0]!, pol arg.getKind, exp arg[0]!)
     addTac (← reconstructTerm pf.getResult) (Arith.mulSign · es)
   | .ARITH_MULT_POS =>
-    let ⟨α, _⟩ := getTypeAndInst pf.getArguments[0]!.getSort
+    let ⟨α, _, _, _⟩ := getTypeAndInst pf.getArguments[0]!.getSort
     let m : Q($α) ← reconstructTerm pf.getArguments[0]!
     let l : Q($α) ← reconstructTerm pf.getArguments[1]![0]!
     let r : Q($α) ← reconstructTerm pf.getArguments[1]![1]!
     match pf.getArguments[1]!.getKind with
     | .LT =>
-      addThm q($m > 0 ∧ $l < $r → $m * $l < $m * $r) q(@Arith.arith_mul_pos_lt _ _ $l $r $m)
+      addThm q($m > 0 ∧ $l < $r → $m * $l < $m * $r) q(@Arith.arith_mul_pos_lt _ _ _ _ $l $r $m)
     | .LEQ =>
-      addThm q($m > 0 ∧ $l ≤ $r → $m * $l ≤ $m * $r) q(@Arith.arith_mul_pos_le _ _ $l $r $m)
+      addThm q($m > 0 ∧ $l ≤ $r → $m * $l ≤ $m * $r) q(@Arith.arith_mul_pos_le _ _ _ _ $l $r $m)
     | .EQUAL =>
-      addThm q($m > 0 ∧ $l = $r → $m * $l = $m * $r) q(@Arith.arith_mul_pos_eq _ _ $l $r $m)
+      addThm q($m > 0 ∧ $l = $r → $m * $l = $m * $r) q(@Arith.arith_mul_pos_eq _ _ _ _ $l $r $m)
     | .GEQ =>
-      addThm q($m > 0 ∧ $l ≥ $r → $m * $l ≥ $m * $r) q(@Arith.arith_mul_pos_ge _ _ $l $r $m)
+      addThm q($m > 0 ∧ $l ≥ $r → $m * $l ≥ $m * $r) q(@Arith.arith_mul_pos_ge _ _ _ _ $l $r $m)
     | .GT =>
-      addThm q($m > 0 ∧ $l > $r → $m * $l > $m * $r) q(@Arith.arith_mul_pos_gt _ _ $l $r $m)
+      addThm q($m > 0 ∧ $l > $r → $m * $l > $m * $r) q(@Arith.arith_mul_pos_gt _ _ _ _ $l $r $m)
     | _ => return none
   | .ARITH_MULT_NEG =>
-    let ⟨α, _⟩ := getTypeAndInst pf.getArguments[0]!.getSort
+    let ⟨α, _, _, _⟩ := getTypeAndInst pf.getArguments[0]!.getSort
     let m : Q($α) ← reconstructTerm pf.getArguments[0]!
     let l : Q($α) ← reconstructTerm pf.getArguments[1]![0]!
     let r : Q($α) ← reconstructTerm pf.getArguments[1]![1]!
     match pf.getArguments[1]!.getKind with
     | .LT =>
-      addThm q($m < 0 ∧ $l < $r → $m * $l > $m * $r) q(@Arith.arith_mul_neg_lt _ _ $l $r $m)
+      addThm q($m < 0 ∧ $l < $r → $m * $l > $m * $r) q(@Arith.arith_mul_neg_lt _ _ _ _ $l $r $m)
     | .LEQ =>
-      addThm q($m < 0 ∧ $l ≤ $r → $m * $l ≥ $m * $r) q(@Arith.arith_mul_neg_le _ _ $l $r $m)
+      addThm q($m < 0 ∧ $l ≤ $r → $m * $l ≥ $m * $r) q(@Arith.arith_mul_neg_le _ _ _ _ $l $r $m)
     | .EQUAL =>
-      addThm q($m < 0 ∧ $l = $r → $m * $l = $m * $r) q(@Arith.arith_mul_neg_eq _ _ $l $r $m)
+      addThm q($m < 0 ∧ $l = $r → $m * $l = $m * $r) q(@Arith.arith_mul_neg_eq _ _ _ _ $l $r $m)
     | .GEQ =>
-      addThm q($m < 0 ∧ $l ≥ $r → $m * $l ≤ $m * $r) q(@Arith.arith_mul_neg_ge _ _ $l $r $m)
+      addThm q($m < 0 ∧ $l ≥ $r → $m * $l ≤ $m * $r) q(@Arith.arith_mul_neg_ge _ _ _ _ $l $r $m)
     | .GT =>
-      addThm q($m < 0 ∧ $l > $r → $m * $l < $m * $r) q(@Arith.arith_mul_neg_gt _ _ $l $r $m)
+      addThm q($m < 0 ∧ $l > $r → $m * $l < $m * $r) q(@Arith.arith_mul_neg_gt _ _ _ _ $l $r $m)
     | _ => return none
   | .ARITH_MULT_TANGENT =>
     let x : Q(Real) ← reconstructTerm pf.getArguments[0]!

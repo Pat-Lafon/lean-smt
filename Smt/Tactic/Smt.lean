@@ -118,8 +118,46 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
     trace[smt] "\nquery:\n{Command.cmdsAsQuery (cmds ++ [.checkSat])}"
   -- 4. Run the solver.
   if cfg.solver == .z3 then
-    -- Z3 backend via lean-z3 FFI bindings with hint-based reconstruction
-    let z3res ← Solver.Z3.solveWithHints (Command.cmdsAsQuery cmds) cfg.timeout
+    -- Z3 backend via lean-z3 FFI bindings with hint-based reconstruction.
+    -- The query was built from the preprocessed (negated) context, but
+    -- reconstruction works on the ORIGINAL goal so grind can directly
+    -- handle existentials, etc.
+
+    -- Check if the context contains recursive inductive types.
+    -- Z3's registerOnClause callback causes stack overflow with recursive
+    -- datatypes due to deep CDCL recursion. In that case, use `solve`
+    -- (no callback) and fall back to tactic-based reconstruction.
+    let hasRecursive ← mv₁.withContext do
+      let lctx ← getLCtx
+      let env ← getEnv
+      lctx.anyM fun decl => do
+        if decl.isAuxDecl then return false
+        let ty ← Meta.whnf decl.type
+        let head := ty.getAppFn
+        if let .const nm _ := head then
+          if let some (.inductInfo iv) := env.find? nm then
+            if !(Smt.Util.isSmtDatatype env nm) then return false
+            -- Check if any constructor has a recursive argument
+            for ctorNm in iv.ctors do
+              let ctorInfo ← getConstInfo ctorNm
+              let hasRec ← Meta.forallTelescopeReducing ctorInfo.type fun args _ => do
+                for arg in args do
+                  let argTy ← Meta.inferType arg
+                  if argTy.getAppFn.isConstOf nm then return true
+                return false
+              if hasRec then return true
+        return false
+
+    let z3res ← if hasRecursive then
+      trace[smt] "recursive inductive detected, using solve without on-clause callback"
+      let simpleRes ← Solver.Z3.solve (Command.cmdsAsQuery cmds) cfg.timeout
+      match simpleRes with
+      | .unsat => pure (Solver.Z3.HintResult.unsat #[])
+      | .sat => pure Solver.Z3.HintResult.sat
+      | .unknown r => pure (Solver.Z3.HintResult.unknown r)
+    else
+      Solver.Z3.solveWithHints (Command.cmdsAsQuery cmds) cfg.timeout
+
     match z3res with
     | .unknown r =>
       trace[smt.solve] "\nunknown reason:\n{r}\n"
@@ -130,11 +168,72 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
       if cfg.trust then
         mv.admit true
         return .unsat [] hs
-      -- Reconstruct proof from Z3's clause events using grind
       trace[smt] "Z3 returned unsat with {clauses.size} clause events"
-      let mvs ← Smt.Reconstruct.Z3.reconstructFromHints mv₁ clauses fvNames₂
-      mv.assign (.mvar mv₀)
-      return .unsat mvs hs
+      -- Build fvNames from mv's (original) context and reconstruct there.
+      -- We switch fully into mv's context to avoid FVar mismatches between
+      -- the preprocessed and original contexts.
+      mv.withContext do
+      let (_, origNames) ← genUniqueFVarNames
+      try
+        let mvFresh := (← Meta.mkFreshExprMVar (some goalType)).mvarId!
+        let mvs ← Smt.Reconstruct.Z3.reconstructFromHints mvFresh clauses origNames
+        mv.assign (.mvar mvFresh)
+        return .unsat mvs hs
+      catch e =>
+        trace[smt] "hint reconstruction failed, trying fallback strategies"
+        -- Fallback 1: Case-split on inductive variables, then simp_all.
+        -- This handles recursive datatype exhaustiveness/injectivity.
+        let s ← saveState
+        try
+          let mvFresh := (← Meta.mkFreshExprMVar (some goalType)).mvarId!
+          -- Collect user names of inductive-typed variables for case splitting
+          let env ← getEnv
+          let mut caseNames : Array Name := #[]
+          for decl in (← mvFresh.getDecl >>= fun d => pure d.lctx) do
+            if decl.isAuxDecl then continue
+            let ty ← mvFresh.withContext (Meta.whnf decl.type)
+            let head := ty.getAppFn
+            if let .const nm _ := head then
+              if let some (.inductInfo _) := env.find? nm then
+                if Smt.Util.isSmtDatatype env nm then
+                  caseNames := caseNames.push decl.userName
+          -- Build tactic: cases v₁ <;> cases v₂ <;> ... <;> simp_all
+          if caseNames.size > 0 then
+            let remainingGoals ← Lean.Elab.Term.TermElabM.run' do
+              Lean.Elab.Tactic.run mvFresh do
+                for name in caseNames do
+                  Lean.Elab.Tactic.evalTactic
+                    (← `(tactic| all_goals cases $(mkIdent name):ident))
+                Lean.Elab.Tactic.evalTactic (← `(tactic| all_goals simp_all))
+            if remainingGoals.length == 0 then
+              mv.assign (.mvar mvFresh)
+              return .unsat [] hs
+        catch _ => pure ()
+        restoreState s
+        -- Fallback 2: Try grind on the original goal directly.
+        -- Skip if recursive inductives detected (grind may overflow).
+        if !hasRecursive then
+          try
+            let mvFresh := (← Meta.mkFreshExprMVar (some goalType)).mvarId!
+            let remainingGoals ← Lean.Elab.Term.TermElabM.run' do
+              Lean.Elab.Tactic.run mvFresh do
+                Lean.Elab.Tactic.evalTactic (← `(tactic| grind))
+            if remainingGoals.length == 0 then
+              mv.assign (.mvar mvFresh)
+              return .unsat [] hs
+          catch _ => pure ()
+          restoreState s
+        -- Fallback 3: Try simp_all on the original goal.
+        try
+          let mvFresh := (← Meta.mkFreshExprMVar (some goalType)).mvarId!
+          let remainingGoals ← Lean.Elab.Term.TermElabM.run' do
+            Lean.Elab.Tactic.run mvFresh do
+              Lean.Elab.Tactic.evalTactic (← `(tactic| simp_all))
+          if remainingGoals.length == 0 then
+            mv.assign (.mvar mvFresh)
+            return .unsat [] hs
+        catch _ => pure ()
+        throw e
   else
   -- cvc5 backend (default)
   let options := defaultSolverOptions ++ if cfg.trust then [] else [("produce-proofs", "true")] ++ cfg.extraSolverOptions

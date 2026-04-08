@@ -6,6 +6,7 @@ Authors: Tomaz Gomes Mascarenhas
 -/
 
 import Mathlib.Data.Real.Basic
+import Mathlib.Tactic.Linarith
 
 namespace Smt.Reconstruct.Arith
 
@@ -52,23 +53,15 @@ instance : CovariantClass Int Int (swap (· + ·)) (· ≤ ·) where
     exact Int.add_le_add_right h a
 
 instance : CovariantClass Real Real (· + ·) (· < ·) where
-  elim := by
-    intros a b c h
-    exact add_lt_add_left h a
+  elim a _ _ h := by linarith
 
 instance : CovariantClass Real Real (swap (· + ·)) (· < ·) where
-  elim := by
-    intros a b c h
-    exact add_lt_add_right h a
+  elim a _ _ h := by linarith
 
 instance : CovariantClass Real Real (· + ·) (· ≤ ·) where
-  elim := by
-    intros a b c h
-    exact add_le_add_left h a
+  elim a _ _ h := by linarith
 
 instance : CovariantClass Real Real (swap (· + ·)) (· ≤ ·) where
-  elim := by
-    intros a b c h
-    exact add_le_add_right h a
+  elim a _ _ h := by linarith
 
 end Smt.Reconstruct.Arith

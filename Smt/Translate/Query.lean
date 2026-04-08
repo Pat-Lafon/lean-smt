@@ -50,8 +50,11 @@ def addDependency (e e' : Expr) : QueryBuilderM Unit :=
 When `fvarDeps = false`, we filter out dependencies on fvars. -/
 def translateAndFindDeps (e : Expr) (fvarDeps := true) : QueryBuilderM (Term × Array Expr) := do
   let (tm, depConsts, depFVars) ← Translator.translateExpr e
-  let unknownConsts := depConsts.toArray.filterMap fun nm =>
-    if Util.smtConsts.contains nm.toString then none else some (mkConst nm)
+  let unknownConsts ← depConsts.toArray.filterMapM fun nm => do
+    if Util.smtConsts.contains nm.toString then return none
+    let ci ← getConstInfo nm
+    let lvls ← ci.levelParams.mapM fun _ => mkFreshLevelMVar
+    return some (.const nm lvls)
   if fvarDeps then
     let fvs := depFVars.toArray.map mkFVar
     return (tm, fvs ++ unknownConsts)
@@ -135,6 +138,39 @@ def addDefineCommandFor (nm : String) (e : Expr) (params : Array Expr) (cod : Ex
 def addDeclareCommandFor (nm : String) (e tp : Expr) (params : Array Expr) (cod : Expr)
     : QueryBuilderM (Array Expr) := do
   if cod.isSort && !cod.isProp then
+    -- Check if this is a Lean inductive type we can declare as an SMT datatype.
+    if let .const constNm _ := e then
+      let env ← getEnv
+      if let some indVal := env.find? constNm then
+        if let .inductInfo iv := indVal then
+          -- Error on user-defined parameterized types (not yet supported).
+          if Smt.Util.isUserDefinedInductive env constNm && iv.numParams > 0 then
+            throwError "parameterized inductive type '{constNm}' is not yet supported \
+              as an SMT datatype (has {iv.numParams} type parameter(s))"
+          -- Translate user-defined non-parameterized types as SMT datatypes.
+          if Smt.Util.isSmtDatatype env constNm then
+            -- Build constructor declarations for SMT-LIB declare-datatypes.
+            let mut ctorDecls : List ConstructorDecl := []
+            let mut deps : Array Expr := #[]
+            for ctorNm in iv.ctors do
+              let ctorInfo ← getConstInfo ctorNm
+              let ctorType := ctorInfo.type
+              -- Extract field types from the constructor type (skip the return type).
+              let (fields, fieldDeps) ← Meta.forallTelescopeReducing ctorType fun args _ => do
+                let mut fields : List (String × Term) := []
+                let mut fieldDeps : Array Expr := #[]
+                for i in [:args.size] do
+                  let arg := args[i]!
+                  let argTy ← Meta.inferType arg
+                  let (tmTy, argDeps) ← translateAndFindDeps argTy
+                  fields := fields ++ [(s!"{ctorNm.toString}.{i}", tmTy)]
+                  fieldDeps := fieldDeps ++ argDeps
+                return (fields, fieldDeps)
+              ctorDecls := ctorDecls ++ [{ name := ctorNm.toString, fields }]
+              deps := deps ++ fieldDeps
+            addCommand e <| .declareDatatypes [(nm, 0)] [ctorDecls]
+            -- Filter out self-references (the inductive type itself).
+            return deps.filter (· != e)
     addCommand e <| .declareSort nm params.size
     return #[]
   else
@@ -197,6 +233,27 @@ where
       addDependency e (mkConst ``Nat)
       return
 
+    -- Skip constructors and projections of inductives declared via declare-datatypes.
+    -- Their symbols are already introduced by the datatype declaration.
+    if let .const constNm _ := e then
+      let env ← getEnv
+      if let some (.ctorInfo cv) := env.find? constNm then
+        if Smt.Util.isSmtDatatype env cv.induct then
+            -- Ensure the parent inductive is in the graph (it declares this constructor).
+            go (mkConst cv.induct)
+            -- Mark this node as visited with a dependency on the inductive type.
+            modify fun st => { st with graph := st.graph.addVertex e }
+            addDependency e (mkConst cv.induct)
+            return
+      -- Skip projections (selectors) — they're declared by declare-datatypes.
+      if let some pinfo := env.getProjectionFnInfo? constNm then
+        if let some (.inductInfo iv) := env.find? pinfo.ctorName.getPrefix then
+          if Smt.Util.isSmtDatatype env iv.name then
+            go (mkConst iv.name)
+            modify fun st => { st with graph := st.graph.addVertex e }
+            addDependency e (mkConst iv.name)
+            return
+
     let deps ← addCommandFor e et
 
     trace[smt.translate.query] "deps: {deps}"
@@ -244,7 +301,8 @@ def addCommand (cmd : Command) (cmds : List Command) : MetaM (List Command) := d
 
 def emitVertex (cmds : Std.HashMap Expr Command) (e : Expr) : StateT (List Command) MetaM Unit := do
   trace[smt.translate.query] "emitting {e}"
-  let some cmd := cmds[e]? | throwError "no command was computed for {e}"
+  -- Constructors of declare-datatypes inductives have no command; skip them.
+  let some cmd := cmds[e]? | return
   set (← addCommand cmd (← get))
 
 def generateQuery (hs : List Expr) (fvNames : Std.HashMap FVarId String) : MetaM (List Command) :=

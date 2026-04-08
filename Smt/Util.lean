@@ -108,4 +108,21 @@ where
     | some e => .visit e
     | none   => .continue
 
+/-- Check if a name refers to a user-defined (non-library) inductive.
+    An inductive is user-defined if it was defined in the current file
+    (not imported from any dependency). -/
+def isUserDefinedInductive (env : Environment) (nm : Name) : Bool :=
+  match env.find? nm with
+  | some (.inductInfo _) => env.getModuleIdxFor? nm |>.isNone
+  | _ => false
+
+/-- Check if an inductive type should be translated as an SMT `declare-datatypes`.
+    Returns true for user-defined, non-parameterized inductives.
+    Returns false for standard library types and parameterized types. -/
+def isSmtDatatype (env : Environment) (nm : Name) : Bool :=
+  isUserDefinedInductive env nm &&
+    match env.find? nm with
+    | some (.inductInfo iv) => iv.numParams == 0
+    | _ => false
+
 end Smt.Util

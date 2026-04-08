@@ -23,12 +23,6 @@ inductive Pol where
  | Pos : Pol -- 2
  deriving BEq
 
-def intLOR := mkApp2 (.const ``LinearOrderedCommRing.toLinearOrderedRing [.zero])
-                     (.const ``Int []) (.const ``Int.instLinearOrderedCommRing [])
-
-def RealLOR := Expr.const ``Real.instLinearOrderedRing []
-
-
 def traceMulSign (r : Except Exception Unit) : MetaM MessageData :=
   return match r with
   | .ok _ => m!"{checkEmoji}"
@@ -47,7 +41,6 @@ where
       | .const `Rat .. => pure false
       | .const `Int .. => pure true
       | _ => throwError "[arithMulSign]: unexpected type for expression"
-    let lorInst := if exprIsInt then intLOR else RealLOR
     let zeroI := mkApp (mkConst ``Int.ofNat) (mkNatLit 0)
     let zeroR := mkApp (mkConst ``Rat.ofInt) zeroI
     -- zero with the same type as the current argument
@@ -72,9 +65,9 @@ where
         else
           match pol with
           | 1 =>
-            pure $ mkApp6 (mkConst ``nonZeroEvenPow) exprType lorInst (mkNatLit exp) expr bv expParityPf
+            mkAppM ``nonZeroEvenPow #[bv, expParityPf]
           | 2 =>
-            pure $ mkApp5 (mkConst ``powPos) exprType lorInst (mkNatLit exp) expr bv
+            mkAppM ``powPos #[bv]
           | 0 =>
             if exp % 2 == 0 then
               mkAppM ``powNegEven #[bv, expParityPf]
@@ -179,7 +172,6 @@ where
         | .const `Real .. => pure false
         | .const `Int .. => pure true
         | _ => throwError "[arithMulSign]: unexpected type for expression"
-      let lorInst := if exprIsInt then intLOR else RealLOR
       let zeroI := mkApp (mkConst ``Int.ofNat) (mkNatLit 0)
       let zeroR ← mkAppOptM ``OfNat.ofNat #[mkConst ``Real, (mkNatLit 0), none]
       -- zero with the same type as the current argument
@@ -205,9 +197,9 @@ where
           else
             match pol with
             | Pol.NZ =>
-              pure $ mkApp6 (mkConst ``nonZeroEvenPow) exprType lorInst (mkNatLit exp) expr bv expParityPf
+              mkAppM ``nonZeroEvenPow #[bv, expParityPf]
             | Pol.Pos =>
-              pure $ mkApp5 (mkConst ``powPos) exprType lorInst (mkNatLit exp) expr bv
+              mkAppM ``powPos #[bv]
             | Pol.Neg =>
               if exp % 2 == 0 then
                 mkAppM ``powNegEven #[bv, expParityPf]
