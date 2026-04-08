@@ -24,14 +24,13 @@ example
     (ha : a < 0)
     (hb : ¬b = 0)
     (hc' : c = 0)
-    (h₁ : (1 - a) * (b * b) ≤ 0)
     (hc : (0 : Int) ≤ 0)
     (w : -(a * -b * -b + b * -b + 0) = (1 - a) * (b * b))
     (h₂ : (1 - a) * (b * b) ≤ 0) :
     0 < 1 - a := by
-  smt [ha, hb, hc', h₁, hc, w, h₂]
+  smt [ha, hb, hc', hc, w, h₂]
 
-example (e b c a v0 v1 : Int) (h1 : v0 = 5*a) (h2 : v1 = 3*b)
+example (b c a v0 v1 : Int) (h1 : v0 = 5*a) (h2 : v1 = 3*b)
     (h3 : v0 + v1 + c = 10) : v0 + 5 + (v1 - 3) + (c - 2) = 10 := by
   smt [h1, h2, h3]
 
@@ -98,7 +97,7 @@ example (x : Real) (h : 0 < x) : 0 < x/2/3 := by
 example (x : Real) (h : 0 < x) : 0 < x/(2/3) := by
   smt [h]
 
-example (a b c : Real) (h2 : b + 2 > 3 + b) : False := by
+example (b : Real) (h2 : b + 2 > 3 + b) : False := by
   smt [h2]
 
 example (g v V c h : Real) (h1 : h = 0) (h2 : v = V) (h3 : V > 0) (h4 : g > 0)
@@ -108,14 +107,14 @@ example (g v V c h : Real) (h1 : h = 0) (h2 : v = V) (h3 : V > 0) (h4 : g > 0)
 example (x y z : ℤ) (h1 : 2*x < 3*y) (h2 : -4*x + 2*z < 0) (h3 : 12*y - 4* z < 0) : False := by
   smt [h1, h2, h3]
 
-example (x y z : ℤ) (h1 : 2*x < 3*y) (h2 : -4*x + 2*z < 0) (h3 : x*y < 5) (h3 : 12*y - 4* z < 0) :
+example (x y z : ℤ) (h1 : 2*x < 3*y) (h2 : -4*x + 2*z < 0) (h3 : 12*y - 4* z < 0) :
     False := by
   smt [h1, h2, h3]
 
 example (a b c : Real) (h1 : a > 0) (h2 : b > 5) (h3 : c < -10) (h4 : a + b - c < 3) : False := by
   smt [h1, h2, h3, h4]
 
-example (a b c : Real) (h2 : b > 0) (h3 : ¬ b ≥ 0) : False := by
+example (b : Real) (h2 : b > 0) (h3 : ¬ b ≥ 0) : False := by
   smt [h2, h3]
 
 example (x y z : Real) (hx : x ≤ 3*y) (h2 : y ≤ 2*z) (h3 : x ≥ 6*z) : x = 3*y := by
@@ -158,8 +157,7 @@ example (prime : ℤ → Prop) (x y z : Real) (h1 : 2*1*x + (3)*(y*(-1)) < 0) (h
     (h3 : 12*y + (-4)* z < 0) (h4 : prime 7) : False := by
   smt [h1, h2, h3, h4]
 
-example (prime : ℤ → Prop) (w x y z : ℤ) (h1 : 4*x + (-3)*y + 6*w ≤ 0) (h2 : (-1)*x < 0) (h3 : y < 0) (h4 : w ≥ 0)
-    (h5 : prime x) : False := by
+example (w x y : ℤ) (h1 : 4*x + (-3)*y + 6*w ≤ 0) (h2 : (-1)*x < 0) (h3 : y < 0) (h4 : w ≥ 0) : False := by
   smt [h1, h2, h3, h4]
 
 set_option maxRecDepth 200000 in

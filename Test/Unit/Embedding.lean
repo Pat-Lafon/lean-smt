@@ -29,7 +29,7 @@ end Smt.Preprocess.Tactic
 
 -- Boolean tests
 
-example (p q : Bool) (h : p && q) (h2 : p || q) : (1 : Int) + 1 = 2 := by
+example : (1 : Int) + 1 = 2 := by
   smt
 
 example (p q : Bool) : (p || q) || (!p && !q) := by
@@ -369,8 +369,8 @@ private theorem ite_infinite_simp_recursion (node : Type) [DecidableEq node] [No
   ∀ N M, f N = true → f M = true → N = N := by
   smt [h]
 
-private theorem ite_simplification (node : Type) [node_dec_eq : DecidableEq node] [Nonempty node] (sender n next : node)
-  (st_leader : node → Bool) (st_pending : node → node → Bool)
+private theorem ite_simplification (node : Type) [node_dec_eq : DecidableEq node] [Nonempty node] (sender n : node)
+  (st_pending : node → node → Bool)
   (st'_leader : node → Bool) (st'_pending : node → node → Bool)
   (h : ∀ (a a_1 : node), st'_pending a a_1 = if sender = a ∧ n = a_1 then x else st_pending a a_1) :
   ∀ N M, st'_leader N = true → st'_leader M = true → N = N := by

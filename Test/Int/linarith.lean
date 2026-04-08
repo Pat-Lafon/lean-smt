@@ -36,14 +36,13 @@ example
     (ha : a < 0)
     (hb : ¬b = 0)
     (hc' : c = 0)
-    (h₁ : (1 - a) * (b * b) ≤ 0)
     (hc : (0 : Int) ≤ 0)
     (w : -(a * -b * -b + b * -b + 0) = (1 - a) * (b * b))
     (h₂ : (1 - a) * (b * b) ≤ 0) :
     0 < 1 - a := by
-  smt [ha, hb, hc', h₁, hc, w, h₂]
+  smt [ha, hb, hc', hc, w, h₂]
 
-example (e b c a v0 v1 : Int) (h1 : v0 = 5*a) (h2 : v1 = 3*b)
+example (b c a v0 v1 : Int) (h1 : v0 = 5*a) (h2 : v1 = 3*b)
     (h3 : v0 + v1 + c = 10) : v0 + 5 + (v1 - 3) + (c - 2) = 10 := by
   smt [h1, h2, h3]
 
@@ -76,12 +75,11 @@ example (A B : Int) (h : 0 < A * B) : 0 < 8*A*B := by
 example (x y z : Int) (h1 : 2*x < 3*y) (h2 : -4*x + 2*z < 0) (h3 : 12*y - 4* z < 0) : False := by
   smt [h1, h2, h3]
 
-example (x y z : Int) (h1 : 2*x < 3*y) (h2 : -4*x + 2*z < 0) (h3 : x*y < 5) (h3 : 12*y - 4* z < 0) :
+example (x y z : Int) (h1 : 2*x < 3*y) (h2 : -4*x + 2*z < 0) (h3 : 12*y - 4* z < 0) :
     False := by
   smt [h1, h2, h3]
 
-example (prime : Int → Prop) (w x y z : Int) (h1 : 4*x + (-3)*y + 6*w ≤ 0) (h2 : (-1)*x < 0) (h3 : y < 0) (h4 : w ≥ 0)
-    (h5 : prime x) : False := by
+example (w x y : Int) (h1 : 4*x + (-3)*y + 6*w ≤ 0) (h2 : (-1)*x < 0) (h3 : y < 0) (h4 : w ≥ 0) : False := by
   smt [h1, h2, h3, h4]
 
 example (u v x y A B : Int)

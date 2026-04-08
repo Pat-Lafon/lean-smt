@@ -51,7 +51,7 @@ example (p q r : Prop) (ht : True) (hpqr : (p ↔ q) ∧ (q ↔ r)) (ht' : True)
 
 -- Boolean tests
 
-example (p q : Bool) (h : p && q) (h2 : p || q) : (1 : Int) + 1 = 2 := by
+example : (1 : Int) + 1 = 2 := by
   smt +mono
 
 example (p q : Bool) : (p || q) || (!p && !q) := by

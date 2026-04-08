@@ -1,0 +1,4 @@
+'z3_euf_cong' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_euf_cong2' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_euf_trans' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_euf_complex' depends on axioms: [propext]

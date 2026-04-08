@@ -296,27 +296,34 @@ def elabHints : TSyntax ``smtHints → TacticM (Std.HashMap Expr (TSyntax ``smtH
 
 def evalSmtCore (cfg : TSyntax ``Parser.Tactic.optConfig) (hs : TSyntax ``smtHints) := withMainContext do
   let cfg ← elabConfig cfg
+  let solver := match cfg.solver with | .cvc5 => "cvc5" | .z3 => "z3"
   let mv ← Tactic.getMainGoal
   let (map, hs) ← elabHints hs
   let res ← Smt.smt cfg mv hs
   match res with
     | .sat none =>
-      throwError "unable to prove goal, either it is false or you need to provide more facts. Try adding '+model' config option to display a potential counter-example (experimental)."
+      throwError "smt (solver := .{solver}): solver returned sat (goal is not valid).\n\
+        The goal is either false or more facts are needed. \
+        Try adding '+model' config option to display a potential counter-example (experimental)."
     | .sat (.some model) =>
       if model.isEmpty then
-        throwError "unable to prove goal, either it is false or you need to provide more facts. Could not produce a counter-example. Try introducing variables into the local context to get a counter-example."
+        throwError "smt (solver := .{solver}): solver returned sat (goal is not valid).\n\
+          Could not produce a counter-example. \
+          Try introducing variables into the local context to get a counter-example."
       else
         let mut md := m!""
         for (v, t) in model do
           md := md ++ m!"\n  {v} = {t}"
-        throwError "unable to prove goal, either it is false or you need to provide more facts. Here is a potential counter-example:\n{md}"
+        throwError "smt (solver := .{solver}): solver returned sat (goal is not valid).\n\
+          Potential counter-example:{md}"
     | .unsat mvs uc =>
       Tactic.replaceMainGoal mvs
       let uc := uc.filterMap map.get?
       let uc := uc.toList.eraseDups.toArray
       return uc
     | .unknown r =>
-      throwError "unable to prove goal. Try providing more hints. Reason: {r}"
+      throwError "smt (solver := .{solver}): solver returned unknown.\n\
+        The solver could not determine satisfiability. Reason: {r}"
 
 @[tactic smt] def evalSmt : Tactic := fun stx => match stx with
   | `(tactic| smt $cfg:optConfig $hs:smtHints) => do

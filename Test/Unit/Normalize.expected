@@ -10,14 +10,8 @@ Before: [hpqr, ht, ht', t]
 After: [hpqr, ht, ht', a✝]
 Map: [(ht', [_fvar.3956]), (hpqr, [_fvar.3955]), (a✝, [_fvar.3960]), (ht, [_fvar.3954])]
 Map: [(_fvar.4055, [ht']), (_fvar.4054, [hpqr]), (_fvar.4052, [_fvar.3960]), (_fvar.4053, [ht])]
-Test/Unit/Normalize.lean:54:22: warning: unused variable `h`
-
-Note: This linter can be disabled with `set_option linter.unusedVariables false`
-Test/Unit/Normalize.lean:54:35: warning: unused variable `h2`
-
-Note: This linter can be disabled with `set_option linter.unusedVariables false`
-Test/Unit/Normalize.lean:212:0: warning: declaration uses 'sorry'
-Test/Unit/Normalize.lean:216:0: warning: declaration uses 'sorry'
-Test/Unit/Normalize.lean:229:0: warning: declaration uses 'sorry'
-Test/Unit/Normalize.lean:233:0: warning: declaration uses 'sorry'
-Test/Unit/Normalize.lean:240:0: warning: declaration uses 'sorry'
+Test/Unit/Normalize.lean:212:0: warning: declaration uses `sorry`
+Test/Unit/Normalize.lean:216:0: warning: declaration uses `sorry`
+Test/Unit/Normalize.lean:229:0: warning: declaration uses `sorry`
+Test/Unit/Normalize.lean:233:0: warning: declaration uses `sorry`
+Test/Unit/Normalize.lean:240:0: warning: declaration uses `sorry`

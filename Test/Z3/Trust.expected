@@ -1,0 +1,14 @@
+Test/Z3/Trust.lean:4:0: warning: declaration uses `sorry`
+Test/Z3/Trust.lean:4:22: warning: unused variable `h1`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+Test/Z3/Trust.lean:4:31: warning: unused variable `h2`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+Test/Z3/Trust.lean:7:0: warning: declaration uses `sorry`
+Test/Z3/Trust.lean:7:21: warning: unused variable `h1`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+Test/Z3/Trust.lean:7:34: warning: unused variable `h2`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`

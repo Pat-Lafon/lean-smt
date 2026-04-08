@@ -1,0 +1,8 @@
+'z3_nat_triv' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_nat_triv'' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_nat_cong' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_nat_forall' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_nat_neq_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_nat_zero_sub' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_nat_exists' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_nat_exists'' depends on axioms: [propext, Quot.sound]

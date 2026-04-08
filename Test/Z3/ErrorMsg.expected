@@ -1,0 +1,4 @@
+Test/Z3/ErrorMsg.lean:5:2: error: smt (solver := .z3): solver returned sat (goal is not valid).
+The goal is either false or more facts are needed. Try adding '+model' config option to display a potential counter-example (experimental).
+Test/Z3/ErrorMsg.lean:9:2: error: smt (solver := .cvc5): solver returned sat (goal is not valid).
+The goal is either false or more facts are needed. Try adding '+model' config option to display a potential counter-example (experimental).

@@ -1,0 +1,7 @@
+'z3_bv_xor_comm' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_bv_and_comm' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_bv_or_comm' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_bv_add_comm' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_bv_xor_self' depends on axioms: [propext, Quot.sound]
+'z3_bv_and_self' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_bv_or_self' depends on axioms: [propext, Classical.choice, Quot.sound]

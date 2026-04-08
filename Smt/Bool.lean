@@ -6,3 +6,4 @@ Authors: Abdalrhman Mohamed
 -/
 
 import Smt.Preprocess.Embedding.Bool
+import Smt.Translate.Bool

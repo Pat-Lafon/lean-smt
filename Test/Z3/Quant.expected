@@ -1,0 +1,3 @@
+'z3_forall_trivial' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_forall_hyp' depends on axioms: [propext, Classical.choice, Quot.sound]
+'z3_forall_two' depends on axioms: [propext, Classical.choice, Quot.sound]

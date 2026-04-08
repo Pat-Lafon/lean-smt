@@ -103,7 +103,7 @@ example (x : Rat) (h : 0 < x) : 0 < x/2/3 := by
 example (x : Rat) (h : 0 < x) : 0 < x/(2/3) := by
   smt [h]
 
-example (a b c : Rat) (h2 : b + 2 > 3 + b) : False := by
+example (b : Rat) (h2 : b + 2 > 3 + b) : False := by
   smt [h2]
 
 example (g v V c h : Rat) (h1 : h = 0) (h2 : v = V) (h3 : V > 0) (h4 : g > 0)
@@ -113,7 +113,7 @@ example (g v V c h : Rat) (h1 : h = 0) (h2 : v = V) (h3 : V > 0) (h4 : g > 0)
 example (a b c : Rat) (h1 : a > 0) (h2 : b > 5) (h3 : c < -10) (h4 : a + b - c < 3) : False := by
   smt [h1, h2, h3, h4]
 
-example (a b c : Rat) (h2 : b > 0) (h3 : ¬ b ≥ 0) : False := by
+example (b : Rat) (h2 : b > 0) (h3 : ¬ b ≥ 0) : False := by
   smt [h2, h3]
 
 example (x y z : Rat) (hx : x ≤ 3*y) (h2 : y ≤ 2*z) (h3 : x ≥ 6*z) : x = 3*y := by

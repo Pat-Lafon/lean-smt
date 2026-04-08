@@ -13,6 +13,12 @@ namespace Smt.Translate
 
 open Smt.Translate
 
+/-- A constructor declaration for an SMT-LIB datatype. -/
+structure ConstructorDecl where
+  name : String
+  /-- Selector (field) names and their sorts. -/
+  fields : List (String × Term)
+
 /-- An SMT-LIBv2 command that we can emit. -/
 inductive Command where
   | setLogic (l : String)
@@ -21,6 +27,7 @@ inductive Command where
   | defineSort (nm : String) (ps : List Term) (tm : Term)
   | declare (nm : String) (st : Term)
   | defineFun (nm : String) (ps : List (String × Term)) (cod : Term) (tm : Term) (rec : Bool)
+  | declareDatatypes (sorts : List (String × Nat)) (decls : List (List ConstructorDecl))
   | assert (tm : Term)
   | checkSat
   | getModel
@@ -58,6 +65,15 @@ protected def toSexp : Command → Sexp
     sexp!{(define-fun {quoteSymbol nm} {paramsToSexp ps} {cod} {tm})}
   | .defineFun nm ps cod tm true  =>
     sexp!{(define-fun-rec {quoteSymbol nm} {paramsToSexp ps} {cod} {tm})}
+  | .declareDatatypes sorts decls =>
+    let sortSexps := sorts.map fun (nm, arity) => sexp!{({quoteSymbol nm} {toString arity})}
+    let ctorToSexp (c : ConstructorDecl) : Sexp :=
+      if c.fields.isEmpty then sexp!{({quoteSymbol c.name})}
+      else
+        let fields := c.fields.map fun (sel, sort) => sexp!{({quoteSymbol sel} {sort})}
+        Sexp.expr (Sexp.atom (quoteSymbol c.name) :: fields)
+    let declSexps := decls.map fun ctors => sexp!{(...{ctors.map ctorToSexp})}
+    sexp!{(declare-datatypes (...{sortSexps}) (...{declSexps}))}
   | .checkSat                     => sexp!{(check-sat)}
   | .getModel                     => sexp!{(get-model)}
   | .getProof                     => sexp!{(get-proof)}

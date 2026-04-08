@@ -1,9 +1,3 @@
-Test/Unit/Embedding.lean:32:22: warning: unused variable `h`
-
-Note: This linter can be disabled with `set_option linter.unusedVariables false`
-Test/Unit/Embedding.lean:32:35: warning: unused variable `h2`
-
-Note: This linter can be disabled with `set_option linter.unusedVariables false`
 Try this:
   [apply] smt [h2, h4, h5]
 Test/Unit/Embedding.lean:309:2: error: [poly_norm] expected a rational number, got x.7407
@@ -89,9 +83,3 @@ y : ℤ
 h : ↑y = x
 h' : f x y ≠ f ↑y ⌊x⌋
 ⊢ False
-Test/Unit/Embedding.lean:372:108: warning: unused variable `next`
-
-Note: This linter can be disabled with `set_option linter.unusedVariables false`
-Test/Unit/Embedding.lean:373:3: warning: unused variable `st_leader`
-
-Note: This linter can be disabled with `set_option linter.unusedVariables false`
