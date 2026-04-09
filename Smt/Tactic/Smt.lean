@@ -123,40 +123,7 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
     -- reconstruction works on the ORIGINAL goal so grind can directly
     -- handle existentials, etc.
 
-    -- Check if the context contains recursive inductive types.
-    -- Z3's registerOnClause callback causes stack overflow with recursive
-    -- datatypes due to deep CDCL recursion. In that case, use `solve`
-    -- (no callback) and fall back to tactic-based reconstruction.
-    let hasRecursive ← mv₁.withContext do
-      let lctx ← getLCtx
-      let env ← getEnv
-      lctx.anyM fun decl => do
-        if decl.isAuxDecl then return false
-        let ty ← Meta.whnf decl.type
-        let head := ty.getAppFn
-        if let .const nm _ := head then
-          if let some (.inductInfo iv) := env.find? nm then
-            if !(Smt.Util.isSmtDatatype env nm) then return false
-            -- Check if any constructor has a recursive argument
-            for ctorNm in iv.ctors do
-              let ctorInfo ← getConstInfo ctorNm
-              let hasRec ← Meta.forallTelescopeReducing ctorInfo.type fun args _ => do
-                for arg in args do
-                  let argTy ← Meta.inferType arg
-                  if argTy.getAppFn.isConstOf nm then return true
-                return false
-              if hasRec then return true
-        return false
-
-    let z3res ← if hasRecursive then
-      trace[smt] "recursive inductive detected, using solve without on-clause callback"
-      let simpleRes ← Solver.Z3.solve (Command.cmdsAsQuery cmds) cfg.timeout
-      match simpleRes with
-      | .unsat => pure (Solver.Z3.HintResult.unsat #[])
-      | .sat => pure Solver.Z3.HintResult.sat
-      | .unknown r => pure (Solver.Z3.HintResult.unknown r)
-    else
-      Solver.Z3.solveWithHints (Command.cmdsAsQuery cmds) cfg.timeout
+    let z3res ← Solver.Z3.solveWithHints (Command.cmdsAsQuery cmds) cfg.timeout
 
     match z3res with
     | .unknown r =>
@@ -211,18 +178,16 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
         catch _ => pure ()
         restoreState s
         -- Fallback 2: Try grind on the original goal directly.
-        -- Skip if recursive inductives detected (grind may overflow).
-        if !hasRecursive then
-          try
-            let mvFresh := (← Meta.mkFreshExprMVar (some goalType)).mvarId!
-            let remainingGoals ← Lean.Elab.Term.TermElabM.run' do
-              Lean.Elab.Tactic.run mvFresh do
-                Lean.Elab.Tactic.evalTactic (← `(tactic| grind))
-            if remainingGoals.length == 0 then
-              mv.assign (.mvar mvFresh)
-              return .unsat [] hs
-          catch _ => pure ()
-          restoreState s
+        try
+          let mvFresh := (← Meta.mkFreshExprMVar (some goalType)).mvarId!
+          let remainingGoals ← Lean.Elab.Term.TermElabM.run' do
+            Lean.Elab.Tactic.run mvFresh do
+              Lean.Elab.Tactic.evalTactic (← `(tactic| grind))
+          if remainingGoals.length == 0 then
+            mv.assign (.mvar mvFresh)
+            return .unsat [] hs
+        catch _ => pure ()
+        restoreState s
         -- Fallback 3: Try simp_all on the original goal.
         try
           let mvFresh := (← Meta.mkFreshExprMVar (some goalType)).mvarId!

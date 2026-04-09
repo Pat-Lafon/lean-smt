@@ -58,6 +58,15 @@ def translateSort (s : Z3.Srt) (userNames : Std.HashMap String Expr) : MetaM Exp
   | 4 =>
     let size := Z3.Srt.getBvSize s
     return mkApp (.const ``BitVec []) (toExpr size.toNat)
+  | 6 => -- Datatype sort — look up by name as a Lean inductive
+    let name := Z3.Srt.getName s
+    match (← getEnv).find? name.toName with
+    | some (.inductInfo _) => return ← mkConstFreshLevels name.toName
+    | _ =>
+      -- Also check userNames (e.g., for local type variables)
+      match userNames[name]? with
+      | some e => inferType e
+      | none => throwError "translateSort: unknown datatype sort '{name}'"
   | _ => throwError "translateSort: unsupported Z3 sort kind {kind}"
 
 /-- Build a Lean integer literal expression. Always produces an `Int`-typed expression. -/
@@ -422,9 +431,47 @@ where
                   else
                     throwError "translateApp: accessor index {idx} out of range for {cv.induct}"
                 else
-                  -- Not a structure — for plain inductives, we don't have named projections.
-                  -- Fall back to matching on field index from the constructor type.
-                  throwError "translateApp: accessor for non-structure inductive '{cv.induct}' not yet supported"
+                  -- Not a structure — build a casesOn expression to project the field.
+                  -- MCons.idx l  ↦  MyList.casesOn (motive := fun _ => fieldType) l default₁ ... (fun f₀ f₁ ... => fᵢ) ...
+                  -- The default branch uses Inhabited.default; it is unreachable when the
+                  -- recognizer holds (Z3 always pairs accessors with recognizer guards).
+                  let some (.inductInfo iv) := env.find? cv.induct | throwError "translateApp: not an inductive"
+                  let ctor ← mkConstFreshLevels cv.name
+                  let ctorType ← inferType ctor
+                  -- Get the field type at idx from the target constructor
+                  let fieldType ← Meta.forallTelescopeReducing ctorType fun params _ => do
+                    if h : idx < params.size then
+                      Meta.inferType params[idx]
+                    else
+                      throwError "translateApp: accessor index {idx} out of range for '{cv.name}'"
+                  -- Build motive: fun (_ : Inductive) => fieldType
+                  let argType ← Meta.inferType arg
+                  let motive ← Meta.withLocalDeclD `x argType fun x =>
+                    Meta.mkLambdaFVars #[x] fieldType
+                  -- Build one branch per constructor
+                  let mut branches : Array Expr := #[]
+                  for otherCtorNm in iv.ctors do
+                    let otherCtor ← mkConstFreshLevels otherCtorNm
+                    let otherCtorType ← inferType otherCtor
+                    let branch ← Meta.forallTelescopeReducing otherCtorType fun params _ => do
+                      let body ← if otherCtorNm == cv.name then
+                        -- Matching constructor: return the idx-th parameter
+                        if h : idx < params.size then
+                          pure params[idx]
+                        else
+                          throwError "translateApp: accessor index {idx} out of range"
+                      else
+                        -- Non-matching constructor: use Inhabited.default as placeholder.
+                        -- This branch is unreachable when the recognizer holds.
+                        mkAppOptM ``default #[fieldType, none]
+                      Meta.mkLambdaFVars params body
+                    branches := branches.push branch
+                  -- Build casesOn application
+                  let casesOn ← mkConstFreshLevels (cv.induct ++ `casesOn)
+                  let mut result := mkApp (mkApp casesOn motive) arg
+                  for b in branches do
+                    result := mkApp result b
+                  return result
               | _ => throwError "translateApp: unknown constructor '{ctorNameStr}' from accessor '{name}'"
             else
               throwError "translateApp: could not parse field index from accessor '{name}'"
